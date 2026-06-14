@@ -51,6 +51,22 @@ export const API_ENDPOINTS = {
   PUBLIC: {
     INVITATION_DETAIL: (orgId: string, invitationId: string) => `/public/organizations/${orgId}/invitations/${invitationId}`,
   },
+  NOTIFICATIONS: {
+    BASE: "/notifications",
+    STREAM: "/notifications/stream",
+    DELETE: (id: string) => `/notifications/${id}`,
+  },
+  ANALYTICS: {
+    SALES_SUMMARY: (orgId: string) => `/organizations/${orgId}/analytics/sales/summary`,
+    SALES_REVENUE_TREND: (orgId: string) => `/organizations/${orgId}/analytics/sales/revenue-trend`,
+    SALES_CONVERSION_FUNNEL: (orgId: string) => `/organizations/${orgId}/analytics/sales/conversion-funnel`,
+    SALES_TOP_PRODUCTS: (orgId: string) => `/organizations/${orgId}/analytics/sales/top-products`,
+    SALES_CATEGORY_DISTRIBUTION: (orgId: string) => `/organizations/${orgId}/analytics/sales/category-distribution`,
+    PIPELINE_LEAD_FUNNEL: (orgId: string) => `/organizations/${orgId}/analytics/pipeline/lead-funnel`,
+    PIPELINE_SUMMARY: (orgId: string) => `/organizations/${orgId}/analytics/pipeline/summary`,
+    INVENTORY_VALUATION_TREND: (orgId: string) => `/organizations/${orgId}/analytics/inventory/valuation-trend`,
+    INVENTORY_ASSET_DISTRIBUTION: (orgId: string) => `/organizations/${orgId}/analytics/inventory/asset-distribution`,
+  },
 }
 
 export const PAGINATION = {
@@ -78,6 +94,15 @@ export const PERMISSIONS = {
 }
 
 // ─── ERP System Enums & Types ──────────────────────────────────────────────
+export const NOTIFICATION_TYPES = {
+  INFO: "INFO",
+  WARNING: "WARNING",
+  ERROR: "ERROR",
+  SUCCESS: "SUCCESS",
+  ALERT: "ALERT",
+} as const;
+export type NotificationType = typeof NOTIFICATION_TYPES[keyof typeof NOTIFICATION_TYPES];
+
 export const PARTNER_TYPES = {
   INDIVIDUAL: "INDIVIDUAL",
   COMPANY: "COMPANY",
@@ -159,4 +184,3 @@ export const COGS_METHOD = {
   AVERAGE: "AVERAGE",
 } as const;
 export type CogsMethod = typeof COGS_METHOD[keyof typeof COGS_METHOD];
-

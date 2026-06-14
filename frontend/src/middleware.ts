@@ -40,15 +40,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Nếu đã đăng nhập mà truy cập trang chủ "/", chuyển hướng về dashboard hoặc select-org
-  if (pathname === '/') {
-    const currentOrgId = request.cookies.get('currentOrgId')?.value;
-    if (currentOrgId) {
-      return NextResponse.redirect(new URL(`/dashboard/${currentOrgId}`, request.nextUrl));
-    }
-    return NextResponse.redirect(new URL('/select-org', request.nextUrl));
-  }
-
   // 🟠 BƯỚC 4.3: Onboarding routes - /select-org
   if (pathname.startsWith('/select-org')) {
     return NextResponse.next();

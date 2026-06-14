@@ -50,7 +50,7 @@ export const useRegister = (): UseRegisterReturn => {
         document.cookie = `clientSession=true; path=/; max-age=86400; secure; samesite=strict`;
         const searchParams = new URLSearchParams(window.location.search);
         const redirectParam = searchParams.get('redirect');
-        const redirectPath = (redirectParam && redirectParam !== '/') ? redirectParam : getRedirectPath(user as any);
+        const redirectPath = redirectParam || getRedirectPath(user as any);
 
         toast.success(`Đăng ký tài khoản thành công! Chào mừng, ${user.firstName}!`, {
           duration: 2000,
