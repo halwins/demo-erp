@@ -35,9 +35,18 @@ export function middleware(request: NextRequest) {
 
   // Nếu không còn ngữ cảnh phiên tối thiểu từ client thì coi như chưa đăng nhập.
   if (!hasClientSessionContext) {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/login', request.nextUrl);
     loginUrl.searchParams.set('redirect', pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Nếu đã đăng nhập mà truy cập trang chủ "/", chuyển hướng về dashboard hoặc select-org
+  if (pathname === '/') {
+    const currentOrgId = request.cookies.get('currentOrgId')?.value;
+    if (currentOrgId) {
+      return NextResponse.redirect(new URL(`/dashboard/${currentOrgId}`, request.nextUrl));
+    }
+    return NextResponse.redirect(new URL('/select-org', request.nextUrl));
   }
 
   // 🟠 BƯỚC 4.3: Onboarding routes - /select-org
@@ -55,13 +64,13 @@ export function middleware(request: NextRequest) {
       // Check nếu currentOrgId cookie match với route param
       const currentOrgId = request.cookies.get('currentOrgId');
       if (!currentOrgId || currentOrgId.value !== orgId) {
-        return NextResponse.redirect(new URL('/select-org', request.url));
+        return NextResponse.redirect(new URL('/select-org', request.nextUrl));
       }
 
       // Check nếu orgId nằm trong userOrgIds của user
       const userOrgIds = userOrgIdsCookie?.split(',') || [];
       if (!userOrgIds.includes(orgId)) {
-        return NextResponse.redirect(new URL('/select-org', request.url));
+        return NextResponse.redirect(new URL('/select-org', request.nextUrl));
       }
       
       return NextResponse.next();
