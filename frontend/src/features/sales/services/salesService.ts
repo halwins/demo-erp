@@ -303,11 +303,17 @@ export const getSaleInvoices = async (
   orgId: string,
   params?: { search?: string; page?: number; limit?: number }
 ): Promise<PagedEntityResponse<SaleInvoice>> => {
-  const response = await apiClient.get<PagedEntityResponse<SaleInvoice>>(
+  const response = await apiClient.get<PagedEntityResponse<any>>(
     API_ENDPOINTS.SALES.INVOICES(orgId),
     { params }
   );
-  return response.data;
+  return {
+    ...response.data,
+    data: (response.data.data || []).map((inv: any) => ({
+      ...inv,
+      saleOrder: inv.order
+    }))
+  };
 };
 
 export const getSaleInvoiceById = async (orgId: string, id: string): Promise<SaleInvoice> => {
@@ -339,6 +345,18 @@ export const updateInvoiceStatus = async (
   const response = await apiClient.patch<SaleInvoice>(
     `${API_ENDPOINTS.SALES.INVOICES(orgId)}/${id}/status`,
     { status }
+  );
+  return response.data;
+};
+
+export const registerPayment = async (
+  orgId: string,
+  id: string,
+  amount: number
+): Promise<SaleInvoice> => {
+  const response = await apiClient.post<SaleInvoice>(
+    `${API_ENDPOINTS.SALES.INVOICES(orgId)}/${id}/payments`,
+    { amount }
   );
   return response.data;
 };
@@ -438,3 +456,47 @@ export const getSalesCategoryDistribution = async (
   );
   return response.data;
 };
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export const getProductCategories = async (
+  orgId: string,
+  params?: { search?: string; page?: number; limit?: number }
+): Promise<PagedEntityResponse<ProductCategory>> => {
+  const response = await apiClient.get<PagedEntityResponse<ProductCategory>>(
+    `/organizations/${orgId}/product-categories`,
+    { params }
+  );
+  return response.data;
+};
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIONABLE AI: SALES FORECASTING
+// ─────────────────────────────────────────────────────────────────────────────
+export interface AiForecastPoint {
+  date: string;
+  historical_revenue: number | null;
+  predicted_revenue: number;
+}
+
+export interface AiSalesForecastResponse {
+  summary: string;
+  forecast_30d_total_revenue: number;
+  forecast_points: AiForecastPoint[];
+  insights: string[];
+}
+
+export const getAiSalesForecast = async (
+  orgId: string,
+  period: string = '30d'
+): Promise<AiSalesForecastResponse> => {
+  const response = await apiClient.get<AiSalesForecastResponse>(
+    `/organizations/${orgId}/ai/sales/forecast`,
+    { params: { period } }
+  );
+  return response.data;
+};
+

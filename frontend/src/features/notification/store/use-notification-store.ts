@@ -46,6 +46,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   initializeSSE: () => {
+    // Commented out to disable active SSE notification stream connection
+    /*
     const { eventSource } = get();
     if (eventSource) return;
 
@@ -60,13 +62,16 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     });
 
     es.onerror = (error) => {
-      console.error('SSE connection error:', error);
       if (es.readyState === EventSource.CLOSED) {
+        console.error('SSE connection closed permanently:', error);
         get().cleanupSSE();
+      } else if (es.readyState === EventSource.CONNECTING) {
+        console.warn('SSE connection lost. Attempting to reconnect...');
       }
     };
 
     set({ eventSource: es });
+    */
   },
 
   cleanupSSE: () => {

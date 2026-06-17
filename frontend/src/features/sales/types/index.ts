@@ -5,6 +5,15 @@ import {
   InvoiceStatus 
 } from "@/config/constants";
 
+export interface PartnerContact {
+  id?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  jobPosition?: string;
+  notes?: string;
+}
+
 // ─── Partner (Khách hàng / Nhà cung cấp) ──────────────────────────────────
 export interface SalePartner {
   id: string;
@@ -17,6 +26,13 @@ export interface SalePartner {
   type: PartnerType | 'CUSTOMER' | 'VENDOR'; // Union kept for legacy frontend support
   partnerType?: PartnerType;
   isArchived?: boolean;
+  contacts?: PartnerContact[];
+}
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  description?: string;
 }
 
 // ─── Product ──────────────────────────────────────────────────────────────
@@ -24,13 +40,16 @@ export interface Product {
   id: string;
   name: string;
   code: string;   // backend field
-  sku?: string;   // alias kept for legacy UI
+  sku: string;   // alias kept for legacy UI
   description: string;
   price: number;  // frontend alias; backend sends `salePrice`
   salePrice?: number;
   purchasePrice?: number;
   isActive?: boolean;
   isArchived?: boolean;
+  categoryId?: string;
+  category?: ProductCategory;
+  image?: string;
 }
 
 // ─── Tax ──────────────────────────────────────────────────────────────────
@@ -119,6 +138,11 @@ export interface SaleOrder {
   termsAndConditions?: string;
   taxAmount?: number;
   netAmount?: number;
+  warehouseId?: string;
+  warehouseName?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  invoiceStatus?: InvoiceStatus;
 }
 
 // ─── Invoice (Tích hợp thực tế backend) ───────────────────────────

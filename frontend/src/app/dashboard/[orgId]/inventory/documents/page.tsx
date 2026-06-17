@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { 
   getWarehouses, 
   getInventoryDocuments, 
@@ -16,6 +17,7 @@ import {
   InventoryDocumentItemRequest
 } from '@/features/inventory/types';
 import { Product } from '@/features/sales/types';
+import { DOCUMENT_TYPE, DOCUMENT_STATUS, REFERENCE_TYPE } from '@/config/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,8 +27,9 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { PERMISSIONS } from '@/config/permissions';
 import { toast } from 'sonner';
 
-export default function DocumentsListPage({ params }: { params: Promise<{ orgId: string }> }) {
-  const { orgId } = use(params);
+export default function DocumentsListPage() {
+  const params = useParams();
+  const orgId = params.orgId as string;
   const router = useRouter();
   const { hasPermission } = usePermissions();
 
@@ -36,13 +39,17 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
+  const searchParams = useSearchParams();
+  const initialType = searchParams.get('type') || 'ALL';
+  const [activeType, setActiveType] = useState<string>(initialType);
+  
   // Status Filters
-  const [activeTab, setActiveTab] = useState<'ALL' | 'DRAFT' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | typeof DOCUMENT_STATUS[keyof typeof DOCUMENT_STATUS]>('ALL');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productsList, setProductsList] = useState<Product[]>([]);
-  const [docType, setDocType] = useState<DocumentType>('RECEIPT');
+  const [docType, setDocType] = useState<DocumentType>(DOCUMENT_TYPE.RECEIPT);
   const [srcWhId, setSrcWhId] = useState<string>('');
   const [scheduledDate, setScheduledDate] = useState<string>(
     new Date().toISOString().substring(0, 16) // Format for datetime-local input
@@ -107,7 +114,7 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
   };
 
   const handleOpenCreateModal = () => {
-    setDocType('RECEIPT');
+    setDocType(DOCUMENT_TYPE.RECEIPT);
     setSrcWhId('');
     setScheduledDate(new Date().toISOString().substring(0, 16));
     setNotes('');
@@ -169,6 +176,17 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
     if (activeTab !== 'ALL' && doc.documentStatus !== activeTab) {
       return false;
     }
+
+    // Type filtering
+    if (activeType !== 'ALL') {
+      if (activeType === 'TRANSFER' || activeType === 'TRANSFER_OUT') {
+        if (doc.documentType !== DOCUMENT_TYPE.TRANSFER_IN && doc.documentType !== DOCUMENT_TYPE.TRANSFER_OUT) {
+          return false;
+        }
+      } else if (doc.documentType !== activeType) {
+        return false;
+      }
+    }
     
     // Search filtering
     const q = searchQuery.toLowerCase();
@@ -176,7 +194,8 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
 
     return doc.name.toLowerCase().includes(q) || 
            doc.notes?.toLowerCase().includes(q) || 
-           doc.documentType.toLowerCase().includes(q);
+           doc.documentType.toLowerCase().includes(q) ||
+           doc.orderNumber?.toLowerCase().includes(q);
   });
 
   return (
@@ -201,6 +220,22 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
                   [{wh.code}] {wh.name}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Operation Type Filter */}
+          <div className="flex items-center space-x-2">
+            <Filter className="w-4 h-4 text-[#898989]" />
+            <select
+              value={activeType}
+              onChange={(e) => setActiveType(e.target.value)}
+              className="h-10 border border-[#d0d0d0] rounded-[4px] px-3 text-[13px] bg-white focus:outline-none focus:border-[#0066cc] w-[140px]"
+            >
+              <option value="ALL">All Operations</option>
+              <option value={DOCUMENT_TYPE.RECEIPT}>Receipts (IN)</option>
+              <option value={DOCUMENT_TYPE.ISSUE}>Deliveries (OUT)</option>
+              <option value="TRANSFER">Transfers (Internal)</option>
+              <option value={DOCUMENT_TYPE.ADJUSTMENT}>Adjustments</option>
             </select>
           </div>
 
@@ -235,7 +270,7 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
 
       {/* Tabs */}
       <div className="flex space-x-1 border-b border-[#e0e0e0] mb-4 shrink-0">
-        {(['ALL', 'DRAFT', 'CONFIRMED', 'COMPLETED', 'CANCELLED'] as const).map(tab => (
+        {(['ALL', DOCUMENT_STATUS.DRAFT, DOCUMENT_STATUS.CONFIRMED, DOCUMENT_STATUS.COMPLETED, DOCUMENT_STATUS.CANCELLED] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -260,6 +295,7 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Reference</th>
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Operation Type</th>
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Source Document</th>
+                <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Order No.</th>
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Scheduled Date</th>
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Notes</th>
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider text-center">Status</th>
@@ -269,14 +305,14 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-[#898989] text-[13px]">
+                  <td colSpan={8} className="py-12 text-center text-[#898989] text-[13px]">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0066cc]" />
                     Fetching documents...
                   </td>
                 </tr>
               ) : filteredDocs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-[#898989] text-[13px]">
+                  <td colSpan={8} className="py-12 text-center text-[#898989] text-[13px]">
                     No stock movements found.
                   </td>
                 </tr>
@@ -296,22 +332,34 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
                       <td className="py-3.5 px-4 text-[13px]">
                         <span className={cn(
                           "inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-[600] uppercase",
-                          doc.documentType === 'RECEIPT' && "bg-[#e2f0d9] text-[#385723]",
-                          doc.documentType === 'ISSUE' && "bg-[#fbe5d6] text-[#c65911]",
-                          doc.documentType === 'TRANSFER_IN' && "bg-[#e8f4fd] text-[#1b75bb]",
-                          doc.documentType === 'TRANSFER_OUT' && "bg-[#e8f4fd] text-[#1b75bb]",
-                          doc.documentType === 'ADJUSTMENT' && "bg-[#e2e8f0] text-[#475569]"
+                          doc.documentType === DOCUMENT_TYPE.RECEIPT && "bg-[#e2f0d9] text-[#385723]",
+                          doc.documentType === DOCUMENT_TYPE.ISSUE && "bg-[#fbe5d6] text-[#c65911]",
+                          doc.documentType === DOCUMENT_TYPE.TRANSFER_IN && "bg-[#e8f4fd] text-[#1b75bb]",
+                          doc.documentType === DOCUMENT_TYPE.TRANSFER_OUT && "bg-[#e8f4fd] text-[#1b75bb]",
+                          doc.documentType === DOCUMENT_TYPE.ADJUSTMENT && "bg-[#e2e8f0] text-[#475569]"
                         )}>
                           {doc.documentType.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-[13px] text-[#4a4a4a] font-medium">
-                        {doc.referenceType !== 'MANUAL' ? (
+                        {doc.referenceType !== REFERENCE_TYPE.MANUAL ? (
                           <span className="bg-[#f5f5f5] px-2 py-1 border border-[#e0e0e0] rounded font-mono text-[11px]">
                             {doc.referenceType}: {doc.referenceId?.substring(0, 8)}
                           </span>
                         ) : (
                           <span className="text-[#898989] italic">Manual adjustment</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-[13px] text-[#4a4a4a] font-medium" onClick={(e) => e.stopPropagation()}>
+                        {doc.orderNumber ? (
+                          <Link 
+                            href={`/dashboard/${orgId}/sales/orders/${doc.referenceId}`}
+                            className="inline-flex items-center justify-center min-w-[110px] text-center px-2 py-0.5 rounded-[4px] text-[11px] font-[600] uppercase bg-[#e8f4fd] text-[#1b75bb] border border-[#d0e8fc] hover:bg-[#d0e8fc] hover:text-[#004499] transition-colors"
+                          >
+                            {doc.orderNumber}
+                          </Link>
+                        ) : (
+                          <span className="text-[#898989] italic">-</span>
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-[13px] text-[#64748b]">
@@ -325,12 +373,12 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span className={cn(
-                          "inline-block px-2.5 py-0.5 rounded-[12px] text-[11px] font-[600] uppercase",
-                          doc.documentStatus === 'DRAFT' && "bg-[#e2e8f0] text-[#475569]",
-                          doc.documentStatus === 'CONFIRMED' && "bg-[#e8f4fd] text-[#0066cc]",
-                          doc.documentStatus === 'COMPLETED' && "bg-[#e2f0d9] text-[#385723]",
-                          doc.documentStatus === 'CANCELLED' && "bg-[#fbe5d6] text-[#c65911]",
-                          doc.documentStatus === 'WAITING_FOR_STOCK' && "bg-[#fff2cc] text-[#d68100]"
+                          "inline-block px-2.5 py-0.5 rounded-[4px] min-w-[110px] text-center text-[11px] font-[600] uppercase",
+                          doc.documentStatus === DOCUMENT_STATUS.DRAFT && "bg-[#e2e8f0] text-[#475569]",
+                          doc.documentStatus === DOCUMENT_STATUS.CONFIRMED && "bg-[#e8f4fd] text-[#0066cc]",
+                          doc.documentStatus === DOCUMENT_STATUS.COMPLETED && "bg-[#e2f0d9] text-[#385723]",
+                          doc.documentStatus === DOCUMENT_STATUS.CANCELLED && "bg-[#fbe5d6] text-[#c65911]",
+                          doc.documentStatus === DOCUMENT_STATUS.WAITING_FOR_STOCK && "bg-[#fff2cc] text-[#d68100]"
                         )}>
                           {doc.documentStatus.replace('_', ' ')}
                         </span>
@@ -373,10 +421,10 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
                     onChange={e => setDocType(e.target.value as DocumentType)}
                     className="w-full h-10 border border-[#d0d0d0] rounded-[4px] px-3 text-[13px] bg-white focus:outline-none focus:border-[#0066cc]"
                   >
-                    <option value="RECEIPT">INBOUND: Stock Receipt</option>
-                    <option value="ISSUE">OUTBOUND: Stock Issue</option>
-                    <option value="TRANSFER_OUT">INTERNAL: Stock Transfer</option>
-                    <option value="ADJUSTMENT">AUDIT: Inventory Adjustment</option>
+                    <option value={DOCUMENT_TYPE.RECEIPT}>INBOUND: Stock Receipt</option>
+                    <option value={DOCUMENT_TYPE.ISSUE}>OUTBOUND: Stock Issue</option>
+                    <option value={DOCUMENT_TYPE.TRANSFER_OUT}>INTERNAL: Stock Transfer</option>
+                    <option value={DOCUMENT_TYPE.ADJUSTMENT}>AUDIT: Inventory Adjustment</option>
                   </select>
                 </div>
                 <div>
@@ -391,7 +439,7 @@ export default function DocumentsListPage({ params }: { params: Promise<{ orgId:
               </div>
 
               {/* Source warehouse selector if Internal Transfer */}
-              {docType === 'TRANSFER_OUT' && (
+              {docType === DOCUMENT_TYPE.TRANSFER_OUT && (
                 <div>
                   <label className="block text-[13px] font-[600] text-[#242424] mb-1.5">Destination Warehouse Location</label>
                   <select
