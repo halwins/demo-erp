@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
 import { PermissionGuard } from '@/components/rbac/PermissionGuard';
 import { PERMISSIONS } from '@/config/permissions';
+import { APP_ROUTES } from '@/config/constants';
 
 export default function SalesLayout({
   children,
@@ -17,7 +18,6 @@ export default function SalesLayout({
 }) {
   const pathname = usePathname();
   const { orgId } = use(params);
-  const basePath = `/dashboard/${orgId}/sales`;
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -35,19 +35,19 @@ export default function SalesLayout({
   };
 
   const docItems = [
-    { name: 'Quotations', href: `${basePath}/quotations`, icon: FileText },
-    { name: 'Orders', href: `${basePath}/orders`, icon: ShoppingCart },
-    { name: 'Invoices', href: `${basePath}/invoices`, icon: Receipt },
+    { name: 'Quotations', href: APP_ROUTES.SALES.QUOTATIONS(orgId), icon: FileText },
+    { name: 'Orders', href: APP_ROUTES.SALES.ORDERS(orgId), icon: ShoppingCart },
+    { name: 'Invoices', href: APP_ROUTES.SALES.INVOICES(orgId), icon: Receipt },
   ];
 
   const masterItems = [
-    { name: 'Customers', href: `${basePath}/customers`, icon: Users },
-    { name: 'Products', href: `${basePath}/products`, icon: Package },
-    { name: 'Taxes', href: `${basePath}/taxes`, icon: Percent },
+    { name: 'Customers', href: APP_ROUTES.SALES.CUSTOMERS(orgId), icon: Users },
+    { name: 'Products', href: APP_ROUTES.SALES.PRODUCTS(orgId), icon: Package },
+    { name: 'Taxes', href: APP_ROUTES.SALES.TAXES(orgId), icon: Percent },
   ];
 
   const reportItems = [
-    { name: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
+    { name: 'Analytics', href: APP_ROUTES.SALES.ANALYTICS(orgId), icon: BarChart2 },
   ];
 
   const renderNavItem = (item: { name: string; href: string; icon: React.ElementType }) => {
@@ -61,8 +61,8 @@ export default function SalesLayout({
         className={cn(
           "flex items-center rounded-[6px] text-[13px] font-[500] transition-all duration-300 select-none",
           isCollapsed ? "justify-center p-2.5 mx-auto w-10 h-10" : "px-3 py-2.5 mx-1",
-          isActive 
-            ? "bg-[#f0f4ff] text-[#0066cc] font-[600]" 
+          isActive
+            ? "bg-[#f0f4ff] text-[#0066cc] font-[600]"
             : "text-[#4a4a4a] hover:bg-[#f5f5f5] hover:text-[#242424]"
         )}
       >
@@ -156,7 +156,7 @@ export default function SalesLayout({
               <div className="bg-[#28a745] h-full w-[75%] rounded-full transition-all duration-500"></div>
             </div>
             <div className="flex justify-between items-center text-[10px] text-[#898989]">
-              <span className="font-mono">₫750M / ₫1.0B</span>
+              <span className="font-mono">$750M / $1.0B</span>
               <span className="bg-[#28a745]/10 text-[#28a745] px-1.5 py-0.5 rounded font-bold">On track</span>
             </div>
           </div>
@@ -169,7 +169,7 @@ export default function SalesLayout({
 
       {/* Main Module Content */}
       <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col bg-[#f8f8f8]">
-        <PermissionGuard 
+        <PermissionGuard
           permission={PERMISSIONS.SALES.READ}
           fallback={
             <div className="flex-1 flex items-center justify-center text-red-500 font-medium bg-white">

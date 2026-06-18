@@ -9,7 +9,7 @@ import {
   confirmSmartRoute 
 } from '@/features/inventory/services/inventoryService';
 import { SaleOrder } from '@/features/sales/types';
-import { ORDER_STATUS } from '@/config/constants';
+import { ORDER_STATUS, APP_ROUTES } from '@/config/constants';
 import { Clock, ArrowRightLeft, Search, Building, Brain, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +38,7 @@ export default function PendingOrdersPage() {
   const handlePreviewSmartRoute = async () => {
     setIsPreviewLoading(true);
     try {
-      const result = await previewSmartRoute(orgId);
+      const result = await previewSmartRoute(orgId, warehouseId || undefined);
       if (result.length === 0) {
         toast.info('No pending confirmed orders to evaluate for routing.');
         return;
@@ -101,7 +101,7 @@ export default function PendingOrdersPage() {
       // Remove from list
       setOrders(prev => prev.filter(o => o.id !== orderId));
       // Optionally redirect to the created document
-      router.push(`/dashboard/${orgId}/inventory/documents/${doc.id}?warehouseId=${warehouseId}`);
+      router.push(`${APP_ROUTES.INVENTORY.DOCUMENT_DETAIL(orgId, doc.id)}?warehouseId=${warehouseId}`);
     } catch (error: any) {
       console.error(error);
       toast.error(error.response?.data?.message || 'Failed to claim order.');

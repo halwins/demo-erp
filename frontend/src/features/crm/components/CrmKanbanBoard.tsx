@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { CrmLead } from '../types';
+import { APP_ROUTES } from '@/config/constants';
 import { CheckCircle2, Clock, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { updateLeadStage } from '../services/crmService';
@@ -84,8 +85,8 @@ export function CrmKanbanBoard({ leads: initialLeads, orgId }: Props) {
         const colTotal = colLeads.reduce((sum, l) => sum + (l.expectedRevenue || 0), 0);
 
         return (
-          <div 
-            key={col.id} 
+          <div
+            key={col.id}
             className="flex flex-col w-[300px] shrink-0 bg-[#f8f8f8] rounded-[8px]"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, col.id)}
@@ -98,18 +99,18 @@ export function CrmKanbanBoard({ leads: initialLeads, orgId }: Props) {
                 </span>
               </div>
               <div className="text-sm text-[#898989]">
-                ₫{colTotal.toLocaleString()}
+                ${colTotal.toLocaleString()}
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-3 min-h-[150px]">
               {colLeads.map((lead) => (
-                <div 
-                  key={lead.id} 
+                <div
+                  key={lead.id}
                   draggable={hasPermission(PERMISSIONS.LEADS.WRITE)}
                   onDragStart={(e) => handleDragStart(e, lead.id)}
                   onDragEnd={handleDragEnd}
-                  onClick={() => router.push(`/dashboard/${orgId}/crm/leads/${lead.id}`)}
+                  onClick={() => router.push(APP_ROUTES.CRM.LEAD_DETAIL(orgId, lead.id))}
                   className={cn("bg-white p-3 rounded-[4px] shadow-[0px_1px_3px_rgba(0,0,0,0.12)] border border-transparent hover:border-[#0066cc] hover:shadow-[0px_2px_8px_rgba(0,0,0,0.15)] transition-all", hasPermission(PERMISSIONS.LEADS.WRITE) ? "cursor-pointer active:cursor-grabbing" : "cursor-pointer")}
                 >
                   <div className="flex justify-between items-start mb-2">
@@ -126,9 +127,9 @@ export function CrmKanbanBoard({ leads: initialLeads, orgId }: Props) {
                       </span>
                     ) : null}
                   </div>
-                  
+
                   <div className="text-[#242424] text-[13px] font-medium mb-3">
-                    ₫{lead.expectedRevenue?.toLocaleString() || 0}
+                    ${lead.expectedRevenue?.toLocaleString() || 0}
                   </div>
 
                   <div className="flex justify-between items-center text-[#898989] text-xs">
