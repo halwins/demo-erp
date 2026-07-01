@@ -12,6 +12,7 @@ import {
   StockValuation,
   RouteProposalResponse,
   ConfirmRouteRequest,
+  StockLayer,
 } from '../types';
 
 // ─── WAREHOUSE CRUD ──────────────────────────────────────────────────────────
@@ -105,7 +106,7 @@ export const getInventoryBalances = async (
 export const getInventoryDocuments = async (
   orgId: string,
   warehouseId: string,
-  params?: { search?: string; page?: number; limit?: number }
+  params?: { search?: string; status?: string; type?: string; page?: number; limit?: number }
 ): Promise<PaginatedResponse<InventoryDocument>> => {
   const response = await apiClient.get<PaginatedResponse<InventoryDocument>>(
     API_ENDPOINTS.INVENTORY.DOCUMENTS(orgId, warehouseId),
@@ -159,6 +160,17 @@ export const completeInventoryDocument = async (
   return response.data;
 };
 
+export const sentInventoryDocument = async (
+  orgId: string,
+  warehouseId: string,
+  documentId: string
+): Promise<InventoryDocument> => {
+  const response = await apiClient.post<InventoryDocument>(
+    `${API_ENDPOINTS.INVENTORY.DOCUMENTS(orgId, warehouseId)}/${documentId}/sent`
+  );
+  return response.data;
+};
+
 export const cancelInventoryDocument = async (
   orgId: string,
   warehouseId: string,
@@ -207,7 +219,7 @@ export const confirmSmartRoute = async (
 export const getReplenishmentRequests = async (
   orgId: string,
   warehouseId: string,
-  params?: { search?: string; page?: number; limit?: number }
+  params?: { search?: string; status?: string; page?: number; limit?: number }
 ): Promise<PaginatedResponse<ReplenishmentRequest>> => {
   const response = await apiClient.get<PaginatedResponse<ReplenishmentRequest>>(
     API_ENDPOINTS.INVENTORY.REPLENISHMENT_REQUESTS(orgId, warehouseId),
@@ -361,5 +373,16 @@ export const confirmAiReorders = async (
     recommendations,
     { params: { warehouseId } }
   );
+};
+
+export const getStockLayers = async (
+  orgId: string,
+  warehouseId: string,
+  productId: string
+): Promise<StockLayer[]> => {
+  const response = await apiClient.get<StockLayer[]>(
+    `/organizations/${orgId}/warehouses/${warehouseId}/balances/products/${productId}/layers`
+  );
+  return response.data;
 };
 

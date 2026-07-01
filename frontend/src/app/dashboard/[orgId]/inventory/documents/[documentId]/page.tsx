@@ -9,7 +9,8 @@ import {
   cancelInventoryDocument,
   createReplenishmentRequest,
   getWarehouses,
-  getInventoryBalances
+  getInventoryBalances,
+  sentInventoryDocument
 } from '@/features/inventory/services/inventoryService';
 import { InventoryDocument } from '@/features/inventory/types';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import { toast } from 'sonner';
 import { APP_ROUTES } from '@/config/constants';
 import { Textarea } from '@/components/ui/textarea';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 // Helper to iterate warehouses and find the document
 const getInventoryDocumentByIdWithFallback = async (orgId: string, docId: string): Promise<InventoryDocument> => {
@@ -74,6 +76,12 @@ export default function DocumentDetailsPage({
   // Replenishment Dialog state
   const [isReplenishOpen, setIsReplenishOpen] = useState(false);
   const [replenishNotes, setReplenishNotes] = useState('');
+  
+  // Confirmation Dialog states
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isCompleteOpen, setIsCompleteOpen] = useState(false);
+  const [isSentOpen, setIsSentOpen] = useState(false);
+  const [isCancelOpen, setIsCancelOpen] = useState(false);
   
   // Stock Balances mapping
   const [stockBalances, setStockBalances] = useState<Record<string, number>>({});
@@ -172,9 +180,23 @@ export default function DocumentDetailsPage({
     }
   };
 
+  const handleSent = async () => {
+    if (!doc) return;
+    setIsActionLoading(true);
+    try {
+      const updated = await sentInventoryDocument(orgId, doc.warehouseId, doc.id);
+      toast.success('Document marked as SENT. Stock was deducted from inventory.');
+      setDoc(updated);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to send document. Check stock availability.');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const handleCancel = async () => {
     if (!doc) return;
-    if (!confirm('Are you sure you want to cancel this movement document?')) return;
     setIsActionLoading(true);
     try {
       const updated = await cancelInventoryDocument(orgId, doc.warehouseId, doc.id);
@@ -228,6 +250,7 @@ export default function DocumentDetailsPage({
   const isDraft = doc.documentStatus === 'DRAFT';
   const isConfirmed = doc.documentStatus === 'CONFIRMED';
   const isWaitingStock = doc.documentStatus === 'WAITING_FOR_STOCK';
+  const showAvailableStock = doc.documentStatus !== 'SENT' && doc.documentStatus !== 'COMPLETED' && doc.documentStatus !== 'CANCELLED';
 
   return (
     <div className="h-full flex flex-col font-['Segoe_UI'] bg-white">
@@ -251,6 +274,7 @@ export default function DocumentDetailsPage({
             "text-[11px] font-[700] px-2.5 py-0.5 rounded-[4px] min-w-[110px] text-center uppercase ml-3",
             doc.documentStatus === 'DRAFT' && "bg-[#e2e8f0] text-[#475569]",
             doc.documentStatus === 'CONFIRMED' && "bg-[#e8f4fd] text-[#0066cc]",
+            doc.documentStatus === 'SENT' && "bg-[#e6fffa] text-[#008080] border border-[#b2ebeb]",
             doc.documentStatus === 'COMPLETED' && "bg-[#e2f0d9] text-[#385723]",
             doc.documentStatus === 'CANCELLED' && "bg-[#fbe5d6] text-[#c65911]",
             doc.documentStatus === 'WAITING_FOR_STOCK' && "bg-[#fff2cc] text-[#d68100]"
@@ -261,17 +285,17 @@ export default function DocumentDetailsPage({
 
         {/* State Action Buttons */}
         <div className="flex space-x-2">
-          {isDraft && hasPermission(PERMISSIONS.INVENTORY_DOCUMENTS.WRITE) && (
+          {isDraft && hasPermission(PERMISSIONS.INVENTORY_DOCUMENTS.WRITE) && doc.documentType !== 'TRANSFER_IN' && (
             <>
               <Button 
-                onClick={handleConfirm} 
+                onClick={() => setIsConfirmOpen(true)} 
                 disabled={isActionLoading}
                 className="bg-[#0066cc] hover:bg-[#004499] text-white h-9 px-4 rounded-[4px] font-[600] text-[13px]"
               >
                 <CheckCircle className="w-4 h-4 mr-2" /> Confirm Details
               </Button>
               <Button 
-                onClick={handleCancel} 
+                onClick={() => setIsCancelOpen(true)} 
                 disabled={isActionLoading}
                 variant="ghost"
                 className="text-[#dc3545] hover:bg-[#fff0f0] h-9 px-4 rounded-[4px] font-[600] text-[13px]"
@@ -282,18 +306,38 @@ export default function DocumentDetailsPage({
           )}
 
           {isConfirmed && hasPermission(PERMISSIONS.INVENTORY_DOCUMENTS.WRITE) && (
+            doc.documentType === 'ISSUE' || doc.documentType === 'TRANSFER_OUT' ? (
+              <Button 
+                onClick={() => setIsSentOpen(true)} 
+                disabled={isActionLoading}
+                className="bg-[#0066cc] hover:bg-[#004499] text-white h-9 px-4 rounded-[4px] font-[600] text-[13px]"
+              >
+                <Send className="w-4 h-4 mr-2" /> Send Move
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => setIsCompleteOpen(true)} 
+                disabled={isActionLoading}
+                className="bg-[#28a745] hover:bg-[#218838] text-white h-9 px-4 rounded-[4px] font-[600] text-[13px]"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" /> Complete Transfer
+              </Button>
+            )
+          )}
+
+          {doc.documentStatus === 'SENT' && hasPermission(PERMISSIONS.INVENTORY_DOCUMENTS.WRITE) && (
             <Button 
-              onClick={handleComplete} 
+              onClick={() => setIsCompleteOpen(true)} 
               disabled={isActionLoading}
               className="bg-[#28a745] hover:bg-[#218838] text-white h-9 px-4 rounded-[4px] font-[600] text-[13px]"
             >
-              <Send className="w-4 h-4 mr-2" /> Complete Transfer
+              <CheckCircle className="w-4 h-4 mr-2" /> Complete Move
             </Button>
           )}
 
           {(isConfirmed || isWaitingStock) && hasPermission(PERMISSIONS.INVENTORY_DOCUMENTS.WRITE) && (
             <Button 
-              onClick={handleCancel} 
+              onClick={() => setIsCancelOpen(true)} 
               disabled={isActionLoading}
               variant="ghost"
               className="text-[#dc3545] hover:bg-[#fff0f0] h-9 px-4 rounded-[4px] font-[600] text-[13px]"
@@ -336,12 +380,22 @@ export default function DocumentDetailsPage({
 
         {/* Replenishment In Progress Alert */}
         {isWaitingStock && doc.hasActiveReplenishment && (
-          <div className="bg-[#e8f4fd] border border-[#b8daff] rounded-[4px] p-4 mb-6 flex items-center text-[#0066cc]">
-            <Clock className="w-5 h-5 shrink-0 mr-3" />
-            <div>
-              <p className="text-[13px] font-[700]">Replenishment In Progress</p>
-              <p className="text-[12px]">Replenishment has been requested. Awaiting stock arrival.</p>
+          <div className="bg-[#e8f4fd] border border-[#b8daff] rounded-[4px] p-4 mb-6 flex justify-between items-center text-[#0066cc]">
+            <div className="flex items-center">
+              <Clock className="w-5 h-5 shrink-0 mr-3" />
+              <div>
+                <p className="text-[13px] font-[700]">Replenishment In Progress</p>
+                <p className="text-[12px]">Replenishment has been requested. Awaiting stock arrival.</p>
+              </div>
             </div>
+            {doc.replenishmentRequestId && (
+              <Button 
+                onClick={() => router.push(`${APP_ROUTES.INVENTORY.DOCUMENTS(orgId)}?createFromReplenishment=${doc.replenishmentRequestId}&replenishDocId=${doc.id}&whId=${doc.warehouseId}`)}
+                className="bg-[#0066cc] hover:bg-[#004499] text-white text-[12px] h-8 px-3 rounded-[4px] font-[600]"
+              >
+                Create Stock Move
+              </Button>
+            )}
           </div>
         )}
 
@@ -416,7 +470,7 @@ export default function DocumentDetailsPage({
                   <thead>
                     <tr className="border-b border-[#e0e0e0]">
                       <th className="py-2.5 text-[11px] font-bold text-[#898989] uppercase tracking-wider">Product Name</th>
-                      <th className="py-2.5 text-[11px] font-bold text-[#898989] uppercase tracking-wider text-right">Available Stock</th>
+                      {showAvailableStock && <th className="py-2.5 text-[11px] font-bold text-[#898989] uppercase tracking-wider text-right">Available Stock</th>}
                       <th className="py-2.5 text-[11px] font-bold text-[#898989] uppercase tracking-wider text-right">Quantity</th>
                       <th className="py-2.5 text-[11px] font-bold text-[#898989] uppercase tracking-wider text-right">Unit Cost</th>
                       <th className="py-2.5 text-[11px] font-bold text-[#898989] uppercase tracking-wider text-right">Total Valuation</th>
@@ -425,7 +479,7 @@ export default function DocumentDetailsPage({
                   <tbody>
                     {doc.lines?.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-[#898989] text-[13px]">No product lines registered</td>
+                        <td colSpan={showAvailableStock ? 5 : 4} className="py-8 text-center text-[#898989] text-[13px]">No product lines registered</td>
                       </tr>
                     ) : (
                       doc.lines?.map((line) => {
@@ -440,9 +494,11 @@ export default function DocumentDetailsPage({
                               {line.productName}
                             </div>
                           </td>
-                          <td className={cn("py-3 text-[13px] text-right font-[600]", isShortage ? "text-[#dc3545]" : "text-[#4a4a4a]")}>
-                            {available.toLocaleString()}
-                          </td>
+                          {showAvailableStock && (
+                            <td className={cn("py-3 text-[13px] text-right font-[600]", isShortage ? "text-[#dc3545]" : "text-[#4a4a4a]")}>
+                              {available.toLocaleString()}
+                            </td>
+                          )}
                           <td className="py-3 text-[13px] text-right font-[600] text-[#242424]">
                             {line.quantity.toLocaleString()}
                           </td>
@@ -526,6 +582,59 @@ export default function DocumentDetailsPage({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={isConfirmOpen}
+        onOpenChange={setIsConfirmOpen}
+        title="Confirm Details"
+        description="Are you sure you want to confirm these movement details? This will validate the items list and transition the document to Confirmed state."
+        onConfirm={async () => {
+          await handleConfirm();
+          setIsConfirmOpen(false);
+        }}
+        confirmText="Confirm Details"
+        variant="default"
+        disabled={isActionLoading}
+      />
+      <ConfirmDialog
+        isOpen={isCompleteOpen}
+        onOpenChange={setIsCompleteOpen}
+        title="Complete Transfer"
+        description="Are you sure you want to complete this transfer? This action will update inventory balances, generate accounting valuations (COGS), and is irreversible."
+        onConfirm={async () => {
+          await handleComplete();
+          setIsCompleteOpen(false);
+        }}
+        confirmText="Complete Transfer"
+        variant="success"
+        disabled={isActionLoading}
+      />
+      <ConfirmDialog
+        isOpen={isSentOpen}
+        onOpenChange={setIsSentOpen}
+        title="Send Movement"
+        description="Are you sure you want to send this stock movement? This action will deduct inventory balances, generate accounting valuations (COGS), and is irreversible."
+        onConfirm={async () => {
+          await handleSent();
+          setIsSentOpen(false);
+        }}
+        confirmText="Send Move"
+        variant="success"
+        disabled={isActionLoading}
+      />
+      <ConfirmDialog
+        isOpen={isCancelOpen}
+        onOpenChange={setIsCancelOpen}
+        title="Cancel Movement"
+        description="Are you sure you want to cancel this movement document? This action cannot be undone."
+        onConfirm={async () => {
+          await handleCancel();
+          setIsCancelOpen(false);
+        }}
+        confirmText="Cancel Move"
+        variant="destructive"
+        disabled={isActionLoading}
+      />
     </div>
   );
 }

@@ -7,16 +7,19 @@ import {
   getAiInventoryAnalysis,
   getAiReorderRecommendations,
   confirmAiReorders,
+  getStockLayers,
   ProductAbcXyz,
   AiInventoryAnalysisResponse,
-  AiReorderItem
+  AiReorderItem,
+  StockLayer,
 } from '@/features/inventory/services/inventoryService';
 import { Warehouse, InventoryBalance } from '@/features/inventory/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, RefreshCcw, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Brain, ShoppingCart, Check, Loader2 } from 'lucide-react';
+import { Search, Filter, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, CheckCircle, Brain, ShoppingCart, Check, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 export default function BalancesListPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = use(params);
@@ -25,12 +28,13 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
   const [balances, setBalances] = useState<InventoryBalance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
   // Pagination State
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const limit = 10;
+  const [limit, setLimit] = useState(10);
 
   // Actionable AI States
   const [activeTab, setActiveTab] = useState<'balances' | 'ai-analysis' | 'ai-reorder'>('balances');
@@ -39,6 +43,34 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
   const [reorderRecs, setReorderRecs] = useState<AiReorderItem[]>([]);
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
   const [isConfirmingReorder, setIsConfirmingReorder] = useState(false);
+
+  // Expanded Stock Layers State
+  const [expandedProductIds, setExpandedProductIds] = useState<Record<string, boolean>>({});
+  const [productLayers, setProductLayers] = useState<Record<string, StockLayer[]>>({});
+  const [isLoadingLayers, setIsLoadingLayers] = useState<Record<string, boolean>>({});
+
+  const toggleProductExpand = async (productId: string) => {
+    if (!productId) return;
+    const isExpanded = expandedProductIds[productId];
+    
+    if (!isExpanded && !productLayers[productId]) {
+      setIsLoadingLayers(prev => ({ ...prev, [productId]: true }));
+      try {
+        const layers = await getStockLayers(orgId, selectedWarehouseId, productId);
+        setProductLayers(prev => ({ ...prev, [productId]: layers }));
+      } catch (err) {
+        console.error("Failed to load stock layers", err);
+        toast.error("Failed to load detailed stock layers.");
+      } finally {
+        setIsLoadingLayers(prev => ({ ...prev, [productId]: false }));
+      }
+    }
+    
+    setExpandedProductIds(prev => ({
+      ...prev,
+      [productId]: !isExpanded
+    }));
+  };
 
   // Load warehouses first
   useEffect(() => {
@@ -55,20 +87,20 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
       });
   }, [orgId]);
 
-  // Load balances when selectedWarehouseId, page, or searchQuery changes
+  // Load balances when selectedWarehouseId, page, or appliedSearch changes
   const fetchBalances = () => {
     if (!selectedWarehouseId) return;
 
     setIsLoading(true);
     getInventoryBalances(orgId, selectedWarehouseId, {
-      search: searchQuery.trim(),
+      search: appliedSearch.trim(),
       page,
       limit
     })
       .then(res => {
         setBalances(res.data || []);
-        setTotalItems(res.total || 0);
-        setTotalPages(res.totalPages || Math.ceil((res.total || 1) / limit) || 1);
+        setTotalItems(res.pagination?.totalItems || res.total || 0);
+        setTotalPages(res.pagination?.totalPages || res.totalPages || Math.ceil((res.total || 1) / limit) || 1);
       })
       .catch(err => {
         console.error(err);
@@ -133,12 +165,12 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
       fetchReorderRecommendations();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, selectedWarehouseId, page, activeTab]);
+  }, [orgId, selectedWarehouseId, page, activeTab, limit, appliedSearch]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setAppliedSearch(searchQuery);
     setPage(1);
-    fetchBalances();
   };
 
   const handleWarehouseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -154,7 +186,7 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
   ) || [];
 
   return (
-    <div className="p-6 h-full flex flex-col font-['Segoe_UI'] bg-white overflow-y-auto">
+    <div className="p-6 h-full flex flex-col min-h-0 overflow-hidden font-['Segoe_UI'] bg-white">
       {/* Top Controls */}
       <div className="flex justify-between items-center mb-6 shrink-0">
         <div>
@@ -165,7 +197,7 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
           </h1>
           <span className="text-[14px] text-[#898989]">
             {activeTab === 'balances' && 'View current physical balances and check item availability'}
-            {activeTab === 'ai-analysis' && 'Inventory classification by value (ABC) and sales frequency (XYZ) powered by Gemma-31B-Reasoning'}
+            {activeTab === 'ai-analysis' && 'Inventory classification by value (ABC) and sales frequency (XYZ) powered'}
             {activeTab === 'ai-reorder' && 'Approve goods receipt based on Reorder Point (ROP) and Economic Order Quantity (EOQ)'}
           </span>
         </div>
@@ -182,7 +214,7 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
                 <option value="">No Warehouses Available</option>
               ) : (
                 warehouses.map(wh => (
-                  <option key={wh.id} value={wh.id}>
+                   <option key={wh.id} value={wh.id}>
                     [{wh.code}] {wh.name}
                   </option>
                 ))
@@ -193,11 +225,22 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
           {activeTab === 'balances' && (
             <>
               <form onSubmit={handleSearchSubmit} className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#898989]" />
+                <button 
+                  type="submit"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#898989] hover:text-[#0066cc] focus:outline-none transition-colors"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
                 <Input
                   placeholder="Search by product name/SKU..."
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={e => {
+                    setSearchQuery(e.target.value);
+                    if (e.target.value === '') {
+                      setAppliedSearch('');
+                      setPage(1);
+                    }
+                  }}
                   className="pl-9 h-10 w-[260px] border-[#d0d0d0] rounded-[4px] focus-visible:ring-0 focus-visible:border-[#0066cc]"
                 />
               </form>
@@ -285,10 +328,11 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
       {/* ────────────────── TAB 1: REAL-TIME BALANCES ────────────────── */}
       {activeTab === 'balances' && (
         <div className="flex-1 overflow-auto bg-[#f8f8f8] p-4 -mx-6 -mb-6 border-t border-[#e0e0e0] flex flex-col justify-between">
-          <div className="bg-white border border-[#e0e0e0] rounded-[4px] shadow-[0px_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
-            <table className="w-full text-left border-collapse">
+          <div className="bg-white border border-[#e0e0e0] rounded-[4px] shadow-[0px_1px_2px_rgba(0,0,0,0.05)] overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
                 <tr className="bg-white border-b border-[#e0e0e0]">
+                  <th className="w-10 py-3 px-4"></th>
                   <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">SKU Code</th>
                   <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Product Name</th>
                   <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider text-right">Unit Price</th>
@@ -300,14 +344,14 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-[#898989] text-[13px]">
+                    <td colSpan={7} className="py-12 text-center text-[#898989] text-[13px]">
                       <RefreshCcw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0066cc]" />
                       Fetching inventory balances...
                     </td>
                   </tr>
                 ) : balances.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-[#898989] text-[13px]">
+                    <td colSpan={7} className="py-12 text-center text-[#898989] text-[13px]">
                       No stock balance records found in this warehouse.
                     </td>
                   </tr>
@@ -316,56 +360,120 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
                     const qty = bal.quantity || 0;
                     const isLowStock = qty <= 5;
                     const formattedDate = new Date(bal.updatedAt).toLocaleString();
+                    const productId = bal.product?.id || '';
+                    const isExpanded = expandedProductIds[productId] || false;
+                    const layers = productLayers[productId] || [];
+                    const isLoadingLayersForProduct = isLoadingLayers[productId] || false;
 
                     return (
-                      <tr
-                        key={bal.id}
-                        className="border-b border-[#e0e0e0] last:border-b-0 hover:bg-[#f9fafb] transition-colors"
-                      >
-                        <td className="py-3.5 px-4 font-mono text-[12px] font-[600] text-[#0066cc]">
-                          {bal.product?.sku || 'N/A'}
-                        </td>
-                        <td className="py-3.5 px-4 text-[13px] font-[500] text-[#242424]">
-                          {bal.product?.name || 'Unknown Product'}
-                        </td>
-                        <td className="py-3.5 px-4 text-[13px] text-right font-[500] text-[#4a4a4a]">
-                          ${(bal.product?.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <span className={cn(
-                            "text-[14px] font-[700]",
-                            isLowStock ? "text-[#dc3545]" : "text-[#242424]"
-                          )}>
-                            {qty.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <span className={cn(
-                            "inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-[4px] min-w-[110px] justify-center text-[11px] font-[600]",
-                            qty === 0
-                              ? "bg-[#fbe5d6] text-[#c65911]"
-                              : isLowStock
-                                ? "bg-[#fff2cc] text-[#d68100]"
-                                : "bg-[#e2f0d9] text-[#385723]"
-                          )}>
-                            {qty === 0 ? (
-                              <>Out of Stock</>
-                            ) : isLowStock ? (
-                              <><AlertTriangle className="w-3 h-3 mr-1" /> Low Stock</>
-                            ) : (
-                              <><CheckCircle className="w-3 h-3 mr-1" /> In Stock</>
-                            )}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-[12px] text-[#898989]">
-                          {formattedDate}
-                          {bal.updatedBy && (
-                            <span className="block text-[10px] text-[#b0b0b0]">
-                              by {bal.updatedBy.firstName} {bal.updatedBy.lastName}
-                            </span>
+                      <React.Fragment key={bal.id}>
+                        <tr
+                          className={cn(
+                            "border-b border-[#e0e0e0] last:border-b-0 hover:bg-[#f9fafb] transition-colors cursor-pointer",
+                            isExpanded && "bg-[#f8faff]"
                           )}
-                        </td>
-                      </tr>
+                          onClick={() => toggleProductExpand(productId)}
+                        >
+                          <td className="py-3.5 px-4 text-center">
+                            <button className="text-[#898989] hover:text-[#0066cc] focus:outline-none" onClick={(e) => { e.stopPropagation(); toggleProductExpand(productId); }}>
+                              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            </button>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-[12px] font-[600] text-[#0066cc]">
+                            {bal.product?.sku || 'N/A'}
+                          </td>
+                          <td className="py-3.5 px-4 text-[13px] font-[500] text-[#242424]">
+                            {bal.product?.name || 'Unknown Product'}
+                          </td>
+                          <td className="py-3.5 px-4 text-[13px] text-right font-[500] text-[#4a4a4a]">
+                            ${(bal.product?.purchasePrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <span className={cn(
+                              "text-[14px] font-[700]",
+                              isLowStock ? "text-[#dc3545]" : "text-[#242424]"
+                            )}>
+                              {qty.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span className={cn(
+                              "inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-[4px] min-w-[110px] justify-center text-[11px] font-[600]",
+                              qty === 0
+                                ? "bg-[#fbe5d6] text-[#c65911]"
+                                : isLowStock
+                                  ? "bg-[#fff2cc] text-[#d68100]"
+                                  : "bg-[#e2f0d9] text-[#385723]"
+                            )}>
+                              {qty === 0 ? (
+                                <>Out of Stock</>
+                              ) : isLowStock ? (
+                                <><AlertTriangle className="w-3 h-3 mr-1" /> Low Stock</>
+                              ) : (
+                                <><CheckCircle className="w-3 h-3 mr-1" /> In Stock</>
+                              )}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-[12px] text-[#898989]">
+                            {formattedDate}
+                            {bal.updatedBy && (
+                              <span className="block text-[10px] text-[#b0b0b0]">
+                                by {bal.updatedBy.firstName} {bal.updatedBy.lastName}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-[#fcfcfc] border-b border-[#e0e0e0]">
+                            <td colSpan={7} className="py-3 px-8">
+                              <div className="bg-white border border-[#e0e0e0] rounded p-4 shadow-inner space-y-3">
+                                <div className="flex justify-between items-center border-b border-[#f5f5f5] pb-2">
+                                  <span className="text-[12px] font-[700] text-[#242424]">Cost Layers Breakdown (FIFO Virtual Lots)</span>
+                                  <span className="text-[11px] text-[#898989]">Chronological list of receipts currently holding remaining stock</span>
+                                </div>
+                                
+                                {isLoadingLayersForProduct ? (
+                                  <div className="flex items-center justify-center py-6 text-[12px] text-[#898989]">
+                                    <Loader2 className="w-4 h-4 animate-spin text-[#0066cc] mr-2" />
+                                    Loading stock layers...
+                                  </div>
+                                ) : layers.length === 0 ? (
+                                  <div className="text-center py-6 text-[12px] text-[#898989]">
+                                    No active cost layers found. Default purchase price will be used for calculations.
+                                  </div>
+                                ) : (
+                                  <table className="w-full text-left border-collapse text-[11px] bg-white border border-[#e0e0e0]">
+                                    <thead>
+                                      <tr className="bg-[#f9f9f9] border-b border-[#e0e0e0] text-[#898989]">
+                                        <th className="py-2 px-3 font-[600]">Source Receipt / Document</th>
+                                        <th className="py-2 px-3 font-[600]">Receive Date</th>
+                                        <th className="py-2 px-3 text-right font-[600]">Original Qty</th>
+                                        <th className="py-2 px-3 text-right font-[600] text-[#0066cc]">Remaining Qty</th>
+                                        <th className="py-2 px-3 text-right font-[600]">Layer Unit Cost</th>
+                                        <th className="py-2 px-3 text-right font-[600]">Total Asset Value</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {layers.map((layer) => (
+                                        <tr key={layer.documentLineId} className="border-b border-[#f5f5f5] last:border-b-0">
+                                          <td className="py-2 px-3 font-[500] text-[#242424] font-mono">{layer.documentName}</td>
+                                          <td className="py-2 px-3 text-[#4a4a4a]">{new Date(layer.dateDone).toLocaleString()}</td>
+                                          <td className="py-2 px-3 text-right">{layer.originalQuantity.toLocaleString()}</td>
+                                          <td className="py-2 px-3 text-right font-[700] text-[#0066cc]">{layer.remainingQuantity.toLocaleString()}</td>
+                                          <td className="py-2 px-3 text-right font-mono">${layer.unitCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                          <td className="py-2 px-3 text-right font-mono font-[600] text-[#28a745]">
+                                            ${(layer.remainingQuantity * layer.unitCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -373,43 +481,18 @@ export default function BalancesListPage({ params }: { params: Promise<{ orgId: 
             </table>
           </div>
 
-          {/* Pagination Footer */}
           {!isLoading && totalItems > 0 && (
-            <div className="mt-4 bg-white border border-[#e0e0e0] rounded-[4px] px-4 py-3 flex items-center justify-between text-[13px] text-[#64748b] shrink-0 shadow-sm">
-              <span>
-                Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalItems)} of {totalItems} items
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="p-1 hover:bg-[#f8f8f8] hover:text-[#242424] rounded disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }).map((_, i) => (
-                    <button
-                      key={i}
-                      className={cn(
-                        "w-7 h-7 rounded flex items-center justify-center font-medium",
-                        page === i + 1 ? "bg-[#0066cc] text-white" : "hover:bg-[#f8f8f8] text-[#242424]"
-                      )}
-                      onClick={() => setPage(i + 1)}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="p-1 hover:bg-[#f8f8f8] hover:text-[#242424] rounded disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            <TablePagination
+              page={page}
+              limit={limit}
+              totalItems={totalItems}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              onLimitChange={(newLimit) => {
+                setLimit(newLimit);
+                setPage(1);
+              }}
+            />
           )}
         </div>
       )}

@@ -11,15 +11,23 @@ import { AddressInput } from '@/components/ui/address-input';
 import { usePermissions } from '@/hooks/use-permissions';
 import { PARTNER_TYPES } from '@/config/constants';
 import { PERMISSIONS } from '@/config/permissions';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 export default function CustomersListPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = use(params);
   const [customers, setCustomers] = useState<SalePartner[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<SalePartner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+
   const { hasPermission } = usePermissions();
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,10 +36,15 @@ export default function CustomersListPage({ params }: { params: Promise<{ orgId:
 
   const loadPartners = () => {
     setIsLoading(true);
-    getPartners(orgId)
+    getPartners(orgId, {
+      search: appliedSearch.trim(),
+      page,
+      limit
+    })
       .then(res => {
         setCustomers(res.data || []);
-        setFilteredCustomers(res.data || []);
+        setTotalItems(res.pagination?.totalItems || res.total || 0);
+        setTotalPages(res.pagination?.totalPages || res.totalPages || Math.ceil((res.total || 1) / limit) || 1);
       })
       .catch(console.error)
       .finally(() => setIsLoading(false));
@@ -39,20 +52,7 @@ export default function CustomersListPage({ params }: { params: Promise<{ orgId:
 
   useEffect(() => {
     loadPartners();
-  }, [orgId]);
-
-  useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setFilteredCustomers(customers);
-    } else {
-      const q = searchQuery.toLowerCase();
-      setFilteredCustomers(customers.filter(c =>
-        (c.name && c.name.toLowerCase().includes(q)) ||
-        (c.email && c.email.toLowerCase().includes(q)) ||
-        (c.code && c.code.toLowerCase().includes(q))
-      ));
-    }
-  }, [searchQuery, customers]);
+  }, [orgId, page, appliedSearch, limit]);
 
   const handleOpenModal = async (partner?: SalePartner) => {
     if (partner) {
@@ -127,13 +127,51 @@ export default function CustomersListPage({ params }: { params: Promise<{ orgId:
           <h1 className="text-[24px] font-[600] text-[#242424] mb-1">Customers</h1>
           <span className="text-[14px] text-[#898989]">Manage your customers and partners</span>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex space-x-3 items-center">
+          {/* View Mode Toggle (Organizations style) */}
+          <div className="flex items-center bg-[#f8f8f8] p-1 rounded-[6px] border border-[#e0e0e0]">
+            <button 
+              onClick={() => setViewMode('card')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[13px] font-[600] transition-colors ${viewMode === 'card' ? 'bg-white shadow-sm text-[#0066cc]' : 'text-[#898989] hover:text-[#242424]'}`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Card
+            </button>
+            <button 
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[13px] font-[600] transition-colors ${viewMode === 'table' ? 'bg-white shadow-sm text-[#0066cc]' : 'text-[#898989] hover:text-[#242424]'}`}
+            >
+              <List className="w-4 h-4" />
+              List
+            </button>
+          </div>
+
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#898989]" />
+            <button 
+              onClick={() => {
+                setAppliedSearch(searchQuery);
+                setPage(1);
+              }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#898989] hover:text-[#0066cc] focus:outline-none transition-colors"
+            >
+              <Search className="w-4 h-4" />
+            </button>
             <Input
               placeholder="Search partners..."
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                if (e.target.value === '') {
+                  setAppliedSearch('');
+                  setPage(1);
+                }
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  setAppliedSearch(searchQuery);
+                  setPage(1);
+                }
+              }}
               className="pl-9 h-10 w-[250px] border-[#d0d0d0] rounded-[4px] focus-visible:ring-0 focus-visible:border-[#0066cc]"
             />
           </div>
@@ -151,11 +189,11 @@ export default function CustomersListPage({ params }: { params: Promise<{ orgId:
       <div className="flex-1 overflow-auto bg-[#f8f8f8] p-6 -mx-6 -mb-6 border-t border-[#e0e0e0]">
         {isLoading ? (
           <div className="flex justify-center items-center h-full text-[#898989]">Loading Customers...</div>
-        ) : filteredCustomers.length === 0 ? (
+        ) : customers.length === 0 ? (
           <div className="flex justify-center items-center h-full text-[#898989]">No customers found</div>
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredCustomers.map((customer) => (
+            {customers.map((customer) => (
               <div
                 key={customer.id}
                 onClick={() => handleOpenModal(customer)}
@@ -202,7 +240,7 @@ export default function CustomersListPage({ params }: { params: Promise<{ orgId:
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-[#e0e0e0]">
-                {filteredCustomers.map((customer) => (
+                {customers.map((customer) => (
                   <tr 
                     key={customer.id} 
                     onClick={() => handleOpenModal(customer)}
@@ -241,33 +279,20 @@ export default function CustomersListPage({ params }: { params: Promise<{ orgId:
         )}
       </div>
 
-      {/* Floating Toggle View Mode Pill */}
-      <div className="fixed bottom-6 right-6 z-40 bg-white border border-[#e0e0e0] shadow-[0px_4px_16px_rgba(0,0,0,0.12)] rounded-full p-1.5 flex items-center space-x-1">
-        <button
-          onClick={() => setViewMode('card')}
-          title="Card View"
-          className={cn(
-            "p-2 rounded-full transition-all duration-200",
-            viewMode === 'card'
-              ? "bg-[#0066cc] text-white"
-              : "text-[#898989] hover:bg-gray-100 hover:text-[#242424]"
-          )}
-        >
-          <LayoutGrid className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => setViewMode('table')}
-          title="Table View"
-          className={cn(
-            "p-2 rounded-full transition-all duration-200",
-            viewMode === 'table'
-              ? "bg-[#0066cc] text-white"
-              : "text-[#898989] hover:bg-gray-100 hover:text-[#242424]"
-          )}
-        >
-          <List className="w-4 h-4" />
-        </button>
-      </div>
+      {!isLoading && totalItems > 0 && (
+        <TablePagination
+          page={page}
+          limit={limit}
+          totalItems={totalItems}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          className="mt-6"
+        />
+      )}
 
       {/* Partner Form Modal */}
       {isModalOpen && selectedPartner && (

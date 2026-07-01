@@ -6,6 +6,7 @@ import { FileText, BarChart2, Package, Users, Receipt, ShoppingCart, Percent, Ch
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
 import { PermissionGuard } from '@/components/rbac/PermissionGuard';
+import { AccessDenied } from '@/components/shared/AccessDenied';
 import { PERMISSIONS } from '@/config/permissions';
 import { APP_ROUTES } from '@/config/constants';
 
@@ -35,45 +36,50 @@ export default function SalesLayout({
   };
 
   const docItems = [
-    { name: 'Quotations', href: APP_ROUTES.SALES.QUOTATIONS(orgId), icon: FileText },
-    { name: 'Orders', href: APP_ROUTES.SALES.ORDERS(orgId), icon: ShoppingCart },
-    { name: 'Invoices', href: APP_ROUTES.SALES.INVOICES(orgId), icon: Receipt },
+    { name: 'Quotations', href: APP_ROUTES.SALES.QUOTATIONS(orgId), icon: FileText, permission: PERMISSIONS.ORDERS.READ },
+    { name: 'Orders', href: APP_ROUTES.SALES.ORDERS(orgId), icon: ShoppingCart, permission: PERMISSIONS.ORDERS.READ },
+    { name: 'Invoices', href: APP_ROUTES.SALES.INVOICES(orgId), icon: Receipt, permission: PERMISSIONS.INVOICES.READ },
   ];
 
   const masterItems = [
-    { name: 'Customers', href: APP_ROUTES.SALES.CUSTOMERS(orgId), icon: Users },
-    { name: 'Products', href: APP_ROUTES.SALES.PRODUCTS(orgId), icon: Package },
-    { name: 'Taxes', href: APP_ROUTES.SALES.TAXES(orgId), icon: Percent },
+    { name: 'Customers', href: APP_ROUTES.SALES.CUSTOMERS(orgId), icon: Users, permission: PERMISSIONS.PARTNERS.READ },
+    { name: 'Products', href: APP_ROUTES.SALES.PRODUCTS(orgId), icon: Package, permission: PERMISSIONS.PRODUCTS.READ },
+    { name: 'Taxes', href: APP_ROUTES.SALES.TAXES(orgId), icon: Percent, permission: PERMISSIONS.TAXES.READ },
   ];
 
   const reportItems = [
-    { name: 'Analytics', href: APP_ROUTES.SALES.ANALYTICS(orgId), icon: BarChart2 },
+    { name: 'Analytics', href: APP_ROUTES.SALES.ANALYTICS(orgId), icon: BarChart2, permission: PERMISSIONS.ORDERS.READ },
   ];
 
-  const renderNavItem = (item: { name: string; href: string; icon: React.ElementType }) => {
+  const allNavItems = [...docItems, ...masterItems, ...reportItems];
+  const activeNavItem = allNavItems.find(item => pathname.startsWith(item.href));
+  const requiredPermission = activeNavItem ? activeNavItem.permission : PERMISSIONS.SALES.READ;
+
+  const renderNavItem = (item: { name: string; href: string; icon: React.ElementType; permission: string }) => {
     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
     const Icon = item.icon;
     return (
-      <Link
-        key={item.name}
-        href={item.href}
-        title={isCollapsed ? item.name : undefined}
-        className={cn(
-          "flex items-center rounded-[6px] text-[13px] font-[500] transition-all duration-300 select-none",
-          isCollapsed ? "justify-center p-2.5 mx-auto w-10 h-10" : "px-3 py-2.5 mx-1",
-          isActive
-            ? "bg-[#f0f4ff] text-[#0066cc] font-[600]"
-            : "text-[#4a4a4a] hover:bg-[#f5f5f5] hover:text-[#242424]"
-        )}
-      >
-        <Icon className={cn("w-4 h-4 shrink-0 transition-transform duration-300", isActive ? "text-[#0066cc]" : "text-[#898989]", isCollapsed && "scale-110")} />
-        <span className={cn(
-          "transition-all duration-300 ease-in-out truncate origin-left",
-          isCollapsed ? "w-0 opacity-0 scale-95 pointer-events-none ml-0 hidden" : "w-auto opacity-100 scale-100 ml-3"
-        )}>
-          {item.name}
-        </span>
-      </Link>
+      <PermissionGuard key={item.name} permission={item.permission}>
+        <Link
+          href={item.href}
+          title={isCollapsed ? item.name : undefined}
+          className={cn(
+            "flex items-center rounded-[6px] text-[13px] font-[500] transition-all duration-300 select-none",
+            isCollapsed ? "justify-center p-2.5 mx-auto w-10 h-10" : "px-3 py-2.5 mx-1",
+            isActive
+              ? "bg-[#f0f4ff] text-[#0066cc] font-[600]"
+              : "text-[#4a4a4a] hover:bg-[#f5f5f5] hover:text-[#242424]"
+          )}
+        >
+          <Icon className={cn("w-4 h-4 shrink-0 transition-transform duration-300", isActive ? "text-[#0066cc]" : "text-[#898989]", isCollapsed && "scale-110")} />
+          <span className={cn(
+            "transition-all duration-300 ease-in-out truncate origin-left",
+            isCollapsed ? "w-0 opacity-0 scale-95 pointer-events-none ml-0 hidden" : "w-auto opacity-100 scale-100 ml-3"
+          )}>
+            {item.name}
+          </span>
+        </Link>
+      </PermissionGuard>
     );
   };
 
@@ -145,42 +151,18 @@ export default function SalesLayout({
           </div>
         </div>
 
-        {/* Sidebar Footer Widget - Monthly Goal Progress */}
-        {!isCollapsed ? (
-          <div className="p-4 border-t border-[#e0e0e0] bg-[#fafafa] select-none transition-all duration-300">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-semibold text-[#898989]">Monthly Sales Target</span>
-              <span className="text-[11px] font-bold text-[#28a745]">75%</span>
-            </div>
-            <div className="w-full bg-[#e0e0e0] h-1.5 rounded-full overflow-hidden mb-2">
-              <div className="bg-[#28a745] h-full w-[75%] rounded-full transition-all duration-500"></div>
-            </div>
-            <div className="flex justify-between items-center text-[10px] text-[#898989]">
-              <span className="font-mono">$750M / $1.0B</span>
-              <span className="bg-[#28a745]/10 text-[#28a745] px-1.5 py-0.5 rounded font-bold">On track</span>
-            </div>
-          </div>
-        ) : (
-          <div className="p-3 border-t border-[#e0e0e0] bg-[#fafafa] flex justify-center text-[#28a745]" title="Sales Target: 75%">
-            <Percent className="w-4.5 h-4.5 animate-pulse" />
-          </div>
-        )}
       </aside>
 
       {/* Main Module Content */}
-      <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col bg-[#f8f8f8]">
-        <PermissionGuard
-          permission={PERMISSIONS.SALES.READ}
-          fallback={
-            <div className="flex-1 flex items-center justify-center text-red-500 font-medium bg-white">
-              Access Denied. You do not have permission to access Sales.
-            </div>
-          }
-        >
-          <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col bg-[#f8f8f8] relative">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+          <PermissionGuard
+            permission={requiredPermission}
+            fallback={<AccessDenied title="Access denied" description="Your account does not have permission to access this feature." />}
+          >
             {children}
-          </div>
-        </PermissionGuard>
+          </PermissionGuard>
+        </div>
       </div>
     </div>
   );

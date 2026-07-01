@@ -11,6 +11,7 @@ import { RefreshCw, Boxes, Calendar, FileText, User, Search } from 'lucide-react
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { APP_ROUTES } from '@/config/constants';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 export default function ReplenishmentsListPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = use(params);
@@ -23,15 +24,16 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
   // Tabs filter state
-  const [activeTab, setActiveTab] = useState<'ALL' | 'OPEN' | 'RESOLVED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'OPEN' | 'RESOLVED' | 'CANCELED'>('ALL');
 
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const limit = 100;
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
 
   // Fetch warehouses
   useEffect(() => {
@@ -48,15 +50,6 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
       });
   }, [orgId]);
 
-  // Debounce search query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
   const fetchReplenishments = () => {
     if (!selectedWarehouseId) return;
 
@@ -64,11 +57,13 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
     getReplenishmentRequests(orgId, selectedWarehouseId, { 
       page, 
       limit,
-      search: debouncedSearch || undefined 
+      status: activeTab,
+      search: appliedSearch || undefined 
     })
       .then(res => {
         setRequests(res.data || []);
-        setTotalPages(res.totalPages || Math.ceil((res.total || 1) / limit) || 1);
+        setTotalItems(res.pagination?.totalItems || res.total || 0);
+        setTotalPages(res.pagination?.totalPages || res.totalPages || Math.ceil((res.total || 1) / limit) || 1);
       })
       .catch(err => {
         console.error(err);
@@ -79,15 +74,12 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
 
   useEffect(() => {
     fetchReplenishments();
-  }, [orgId, selectedWarehouseId, page, debouncedSearch]);
+  }, [orgId, selectedWarehouseId, page, appliedSearch, activeTab, limit]);
 
-  const filteredRequests = requests.filter(req => {
-    if (activeTab === 'ALL') return true;
-    return req.status === activeTab;
-  });
+  const filteredRequests = requests;
 
   return (
-    <div className="p-6 h-full flex flex-col font-['Segoe_UI'] bg-white">
+    <div className="p-6 h-full flex flex-col min-h-0 overflow-hidden font-['Segoe_UI'] bg-white">
       {/* Header controls */}
       <div className="flex justify-between items-center mb-5 shrink-0">
         <div>
@@ -96,11 +88,31 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
         </div>
         <div className="flex space-x-3 items-center">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#898989]" />
+            <button 
+              onClick={() => {
+                setAppliedSearch(searchQuery);
+                setPage(1);
+              }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#898989] hover:text-[#0066cc] focus:outline-none transition-colors"
+            >
+              <Search className="w-4 h-4" />
+            </button>
             <Input 
               placeholder="Search replenishment..." 
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                if (e.target.value === '') {
+                  setAppliedSearch('');
+                  setPage(1);
+                }
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  setAppliedSearch(searchQuery);
+                  setPage(1);
+                }
+              }}
               className="pl-9 h-10 w-[240px] border-[#d0d0d0] rounded-[4px] focus-visible:ring-0 focus-visible:border-[#0066cc]" 
             />
           </div>
@@ -135,10 +147,13 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
 
       {/* Tabs */}
       <div className="flex space-x-1 border-b border-[#e0e0e0] mb-4 shrink-0">
-        {(['ALL', 'OPEN', 'RESOLVED'] as const).map(tab => (
+        {(['ALL', 'OPEN', 'RESOLVED', 'CANCELED'] as const).map(tab => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              setActiveTab(tab);
+              setPage(1);
+            }}
             className={cn(
               "px-4 py-2 text-[13px] font-[600] border-b-2 transition-all",
               activeTab === tab 
@@ -152,12 +167,11 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
       </div>
 
       {/* Main Table */}
-      <div className="flex-1 overflow-auto bg-[#f8f8f8] p-4 -mx-6 -mb-6 border-t border-[#e0e0e0] flex flex-col justify-between">
-        <div className="bg-white border border-[#e0e0e0] rounded-[4px] shadow-[0px_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden bg-[#f8f8f8] p-4 -mx-6 -mb-6 border-t border-[#e0e0e0] flex flex-col">
+        <div className="flex-1 overflow-auto bg-white border border-[#e0e0e0] rounded-[4px] shadow-[0px_1px_2px_rgba(0,0,0,0.05)]">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white border-b border-[#e0e0e0]">
-                <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Ticket ID</th>
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Warehouse</th>
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Linked Stock Move</th>
                 <th className="py-3 px-4 text-[12px] font-bold text-[#242424] uppercase tracking-wider">Order No.</th>
@@ -170,14 +184,14 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-[#898989] text-[13px]">
+                  <td colSpan={7} className="py-12 text-center text-[#898989] text-[13px]">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0066cc]" />
                     Loading requests...
                   </td>
                 </tr>
               ) : filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-[#898989] text-[13px]">
+                  <td colSpan={7} className="py-12 text-center text-[#898989] text-[13px]">
                     <div className="bg-[#f8f8f8] w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
                       <Boxes className="w-6 h-6 text-[#d0d0d0]" />
                     </div>
@@ -194,9 +208,6 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
                       onClick={() => router.push(`${APP_ROUTES.INVENTORY.DOCUMENT_DETAIL(orgId, req.inventoryDocumentId)}?whId=${req.warehouseId}`)}
                       className="border-b border-[#e0e0e0] last:border-b-0 hover:bg-[#f0f4ff] transition-colors cursor-pointer group"
                     >
-                      <td className="py-3.5 px-4 font-mono text-[12px] text-[#898989]">
-                        #{req.id.substring(0, 8)}
-                      </td>
                       <td className="py-3.5 px-4 text-[13px] font-[500] text-[#242424]">
                         {req.warehouseName}
                       </td>
@@ -232,7 +243,9 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
                           "inline-block px-2.5 py-0.5 rounded-[4px] min-w-[80px] text-center text-[11px] font-[600] uppercase",
                           req.status === 'OPEN' 
                             ? "bg-[#fff2cc] text-[#d68100]" 
-                            : "bg-[#e2f0d9] text-[#385723]"
+                            : req.status === 'RESOLVED'
+                              ? "bg-[#e2f0d9] text-[#385723]"
+                              : "bg-[#f8d7da] text-[#721c24]"
                         )}>
                           {req.status}
                         </span>
@@ -250,6 +263,20 @@ export default function ReplenishmentsListPage({ params }: { params: Promise<{ o
             </tbody>
           </table>
         </div>
+        {!isLoading && totalItems > 0 && (
+          <TablePagination
+            page={page}
+            limit={limit}
+            totalItems={totalItems}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            onLimitChange={(newLimit) => {
+              setLimit(newLimit);
+              setPage(1);
+            }}
+            className="mt-4 bg-white"
+          />
+        )}
       </div>
     </div>
   );

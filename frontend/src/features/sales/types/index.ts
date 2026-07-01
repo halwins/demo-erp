@@ -42,9 +42,9 @@ export interface Product {
   code: string;   // backend field
   sku: string;   // alias kept for legacy UI
   description: string;
-  price: number;  // frontend alias; backend sends `salePrice`
-  salePrice?: number;
-  purchasePrice?: number;
+  salesPrice: number;
+  purchasePrice: number;
+  cogsMethod?: 'FIFO' | 'LIFO' | 'AVERAGE';
   isActive?: boolean;
   isArchived?: boolean;
   categoryId?: string;
@@ -143,6 +143,8 @@ export interface SaleOrder {
   invoiceId?: string;
   invoiceNumber?: string;
   invoiceStatus?: InvoiceStatus;
+  saleTeamId?: string;
+  saleTeamName?: string;
 }
 
 // ─── Invoice (Tích hợp thực tế backend) ───────────────────────────

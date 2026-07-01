@@ -36,6 +36,8 @@ export const API_ENDPOINTS = {
     PARTNERS: (orgId: string) => `/organizations/${orgId}/partners`,
     PRODUCTS: (orgId: string) => `/organizations/${orgId}/products`,
     TAXES: (orgId: string) => `/organizations/${orgId}/taxes`,
+    PRODUCT_CATEGORIES: (orgId: string) => `/organizations/${orgId}/product-categories`,
+    PRODUCT_CATEGORY_DETAIL: (orgId: string, id: string) => `/organizations/${orgId}/product-categories/${id}`,
     REPORTS: (orgId: string) => `/organizations/${orgId}/reports/sales-dashboard`,
   },
   INVENTORY: {
@@ -204,6 +206,7 @@ export const DOCUMENT_STATUS = {
   COMPLETED: "COMPLETED",
   CANCELLED: "CANCELLED",
   WAITING_FOR_STOCK: "WAITING_FOR_STOCK",
+  SENT: "SENT",
 } as const;
 export type DocumentStatus = typeof DOCUMENT_STATUS[keyof typeof DOCUMENT_STATUS];
 

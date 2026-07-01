@@ -30,7 +30,8 @@ export interface ProductBaseResponse {
   id: string;
   name: string;
   sku: string;
-  price: number;
+  salesPrice: number;
+  purchasePrice: number;
 }
 
 // ─── REQUEST INTERFACES ──────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ export interface InventoryDocumentItemRequest {
 export interface CreateInventoryDocumentRequest {
   documentType: DocumentType;
   transferSourceWarehouseId?: string; // Used if TRANSFER_IN/TRANSFER_OUT or ADJUSTMENT
+  replenishmentRequestId?: string;
   scheduledDate: string; // ISO String
   notes?: string;
   items: InventoryDocumentItemRequest[];
@@ -117,6 +119,7 @@ export interface InventoryDocument {
   createdBy?: UserBaseResponse;
   updatedBy?: UserBaseResponse;
   hasActiveReplenishment?: boolean;
+  replenishmentRequestId?: string;
 }
 
 export interface StockValuation {
@@ -127,6 +130,7 @@ export interface StockValuation {
   quantity: number;
   unitCost: number;
   totalValuation: number;
+  salesPrice: number;
   method: CogsMethod;
   createdAt: string;
 }
@@ -139,7 +143,7 @@ export interface ReplenishmentRequest {
   inventoryDocumentName: string;
   requestedBy: UserBaseResponse;
   notes?: string;
-  status: 'OPEN' | 'RESOLVED';
+  status: 'OPEN' | 'RESOLVED' | 'CANCELED';
   createdAt: string;
   orderNumber?: string;
   referenceId?: string;
@@ -160,4 +164,13 @@ export interface ConfirmRouteRequest {
     orderId: string;
     warehouseId: string;
   }[];
+}
+
+export interface StockLayer {
+  documentLineId: string;
+  documentName: string;
+  dateDone: string;
+  originalQuantity: number;
+  remainingQuantity: number;
+  unitCost: number;
 }
